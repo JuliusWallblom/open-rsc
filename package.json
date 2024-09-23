@@ -1,7 +1,7 @@
 {
   "name": "open-rsc",
   "version": "0.0.7",
-  "description": "OpenRSC is an unopinionated, open source React Server Components implementation package.",
+  "description": "OpenRSC is an unopinionated, open source React Server Components implementation package for Vite.",
   "module": "./dist/esm/index.js",
   "types": "./dist/index.d.ts",
   "main": "src/open-rsc/index.tsx",
