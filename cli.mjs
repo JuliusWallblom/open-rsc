@@ -7,6 +7,7 @@ import inquirer from "inquirer";
 import stripJsonComments from "strip-json-comments";
 
 const greenCheckmark = '\x1b[32m✓\x1b[0m';
+const redCross = '\x1b[31m❌\x1b[0m';
 
 async function askQuestion(query) {
   const answer = await inquirer.prompt([
@@ -57,8 +58,7 @@ function updateTsConfigNode(hasSrcDir) {
       fs.writeFileSync(tsConfigNodePath, JSON.stringify(tsConfigNode, null, 2));
       console.log(`${greenCheckmark} tsconfig.node.json has been configured successfully`);
     } catch (error) {
-      console.error("Error parsing tsconfig.node.json:", error);
-      console.error("File path:", tsConfigNodePath);
+      console.error(`${redCross} Error parsing tsconfig.node.json:`, error);
       throw error; // Re-throw the error to stop the execution
     }
   } else {
@@ -229,7 +229,7 @@ function updatePackageJsonScript(hasSrcDir) {
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
       console.log(`${greenCheckmark} 'dev' script has been configured successfully`);
     } catch (error) {
-      console.error("Error updating package.json:", error);
+      console.error(`${redCross} Error updating package.json:`, error);
     }
   } else {
     console.warn("package.json not found. Skipping script update.");
@@ -333,7 +333,7 @@ async function init() {
           `${greenCheckmark} ${serverFramework} server has been configured successfully`
         );
       } else {
-        console.error(`Error: ${serverFramework} server file not found`);
+        console.error(`${redCross} Error: ${serverFramework} server file not found`);
       }
 
       // Copy routes.ts to the specified location and adjust the import
@@ -365,7 +365,7 @@ async function init() {
           `${greenCheckmark} Routes have been configured successfully`
         );
       } else {
-        console.error("Error: routes.ts file not found in the package");
+        console.error(`${redCross} Error: routes.ts file not found`);
       }
 
       // Adjust the import in renderer/index.tsx
@@ -391,7 +391,7 @@ async function init() {
         fs.writeFileSync(rendererPath, rendererContent);
         console.log(`${greenCheckmark} Updated route configuration import in renderer`);
       } else {
-        console.error("Error: renderer/index.tsx file not found");
+        console.error(`${redCross} Error: renderer/index.tsx file not found`);
       }
 
       // Update tsconfig.node.json
@@ -407,7 +407,7 @@ async function init() {
       updatePackageJsonScript(hasSrcDir === "y");
       console.log(`${greenCheckmark} open-rsc installed successfully!`);
     } else {
-      console.error("Error: open-rsc folder not found in the package");
+      console.error(`${redCross} Error: open-rsc folder not found`);
     }
   } finally {
     // Clean up temporary directory
