@@ -8,7 +8,21 @@ OpenRSC is an unopinionated, open-source React Server Components implementation 
 
 ## Features
 
-- Unopinionated React Server Components implementation
-- Seamless integration with Vite
-- Easy setup and configuration
+- Asynchronous RSC (React Server Components)
+- "use client" directive
+- Self-owned: Modify OpenRSC to fit your needs
 - Flexible and customizable
+- Supports express, Koa and node-http
+
+## Getting Started
+
+### Install
+To install OpenRSC in your Vite project, navigate to the root directory of your repository and run:
+
+```
+npx open-rsc@latest init
+```
+
+### Configure
+
+Add your routes in the routes configuration file and add the OpenRSC router (```<OpenRSC routes={routes} />```) with your routes as a prop. That's it!
