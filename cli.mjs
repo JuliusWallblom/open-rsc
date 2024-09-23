@@ -275,7 +275,7 @@ async function init() {
 
   try {
     // Download the package to the temporary directory
-    console.log("Downloading open-rsc...");
+    console.log("Downloading OpenRSC...");
     execSync(`npm pack ${packageName}`, { cwd: tempDir, stdio: "inherit" });
 
     // Find the downloaded tarball
@@ -288,7 +288,7 @@ async function init() {
     }
 
     // Extract the tarball
-    console.log("Extracting package...");
+    console.log("Extracting OpenRSC...");
     execSync(`tar -xzf ${tarball}`, { cwd: tempDir, stdio: "inherit" });
 
     // Copy the open-rsc folder to the target directory
@@ -389,7 +389,7 @@ async function init() {
 
         // Write the adjusted content back to renderer/index.tsx
         fs.writeFileSync(rendererPath, rendererContent);
-        console.log(`${greenCheckmark} Updated route configuration import in renderer`);
+        console.log(`${greenCheckmark} Renderer has been configured successfully`);
       } else {
         console.error(`${redCross} Error: renderer/index.tsx file not found`);
       }
