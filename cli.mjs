@@ -6,6 +6,8 @@ import path from "node:path";
 import inquirer from "inquirer";
 import stripJsonComments from "strip-json-comments";
 
+const greenCheckmark = '\x1b[32m✓\x1b[0m';
+
 async function askQuestion(query) {
   const answer = await inquirer.prompt([
     {
@@ -53,7 +55,7 @@ function updateTsConfigNode(hasSrcDir) {
 
       // Write back without stripping comments
       fs.writeFileSync(tsConfigNodePath, JSON.stringify(tsConfigNode, null, 2));
-      console.log("Updated tsconfig.node.json");
+      console.log(`${greenCheckmark} tsconfig.node.json has been configured successfully`);
     } catch (error) {
       console.error("Error parsing tsconfig.node.json:", error);
       console.error("File path:", tsConfigNodePath);
@@ -99,7 +101,7 @@ function updateViteConfig(hasSrcDir) {
     }
 
     fs.writeFileSync(viteConfigPath, viteConfig);
-    console.log("Updated vite.config.ts");
+    console.log(`${greenCheckmark} vite.config.ts has been configured successfully`);
   } else {
     console.warn("vite.config.ts not found. Skipping update.");
   }
@@ -128,8 +130,8 @@ ${indent}<!--ssr-marker-->
 
     // Update script src
     const scriptSrc = hasSrcDir
-      ? "/src/open-rsc/hydrator/index.tsx"
-      : "/open-rsc/hydrator/index.tsx";
+      ? "/src/open-rsc/hydration/index.tsx"
+      : "/open-rsc/hydration/index.tsx";
     content = content.replace(
       /<script type="module" src="\/src\/main\.tsx"><\/script>/,
       `<script type="module" src="${scriptSrc}"></script>`
@@ -139,7 +141,7 @@ ${indent}<!--ssr-marker-->
     content = content.replace(/^\s*$(?:\r\n?|\n)/gm, "");
 
     fs.writeFileSync(indexHtmlPath, content);
-    console.log("Updated index.html");
+    console.log(`${greenCheckmark} index.html has been configured successfully`);
   } else {
     console.warn("index.html not found. Skipping update.");
   }
@@ -170,6 +172,13 @@ async function updatePackageJson(serverFramework) {
       }
       if (!packageJson.dependencies["@koa/router"]) {
         packageJson.dependencies["@koa/router"] = "^10.1.1"; // You can adjust the version as needed
+      }
+    } else if (serverFramework === "hono") {
+      if (!packageJson.dependencies.hono) {
+        packageJson.dependencies.hono = "^4.6.2"; // You can adjust the version as needed
+      }
+      if (!packageJson.dependencies["@hono/node-server"]) {
+        packageJson.dependencies["@hono/node-server"] = "^1.13.1"; // You can adjust the version as needed
       }
     }
 
@@ -209,16 +218,16 @@ function updatePackageJsonScript(hasSrcDir) {
   if (fs.existsSync(packageJsonPath)) {
     try {
       const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-      
+
       if (!packageJson.scripts) {
         packageJson.scripts = {};
       }
-      
+
       const serverPath = hasSrcDir ? "src/open-rsc/server" : "open-rsc/server";
       packageJson.scripts.dev = `node ${serverPath}`;
-      
+
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-      console.log("Updated 'dev' script in package.json");
+      console.log(`${greenCheckmark} 'dev' script has been configured successfully`);
     } catch (error) {
       console.error("Error updating package.json:", error);
     }
@@ -235,23 +244,27 @@ async function init() {
 
   // Ask questions
   const hasSrcDir = await askQuestion(
-    "Do you have a src directory in your project? (y/n): "
+    "Do you want to install OpenRSC in the src directory? (y/n): "
   );
 
   const serverFramework = await selectOption(
     "Which server framework would you like to use?",
-    ["express", "koa", "http"]
+    ["hono", "express", "koa", "http"]
   );
 
   // Ask for routes.ts location
   const routesLocation = await askQuestion(
-    'Where would you like to place the route configuration file? (relative to project root, e.g., "src/routes" or "routes"): '
+    'Where would you like to place the route configuration file? (relative to project root, e.g., "src" or "src/router"): '
   );
 
   const installDir =
     hasSrcDir === "y" ? path.join(targetDir, "src") : targetDir;
 
-  if (serverFramework === "express" || serverFramework === "koa") {
+  if (
+    serverFramework === "hono" ||
+    serverFramework === "express" ||
+    serverFramework === "koa"
+  ) {
     await updatePackageJson(serverFramework);
   }
 
@@ -279,7 +292,7 @@ async function init() {
     execSync(`tar -xzf ${tarball}`, { cwd: tempDir, stdio: "inherit" });
 
     // Copy the open-rsc folder to the target directory
-    console.log("Copying open-rsc folder...");
+    console.log("Installing OpenRSC...");
     const openRscPath = path.join(tempDir, "package", "src", "open-rsc");
     if (fs.existsSync(openRscPath)) {
       const destPath = path.join(installDir, "open-rsc");
@@ -301,7 +314,23 @@ async function init() {
       if (fs.existsSync(serverSrcPath)) {
         fs.copyFileSync(serverSrcPath, serverDestPath);
         console.log(
-          `${serverFramework} server has been copied to ${serverDestPath}`
+          `${greenCheckmark} ${serverFramework} server has been copied to ${serverDestPath}`
+        );
+
+        // Modify the server.js file based on whether the user has a src folder
+        let serverContent = fs.readFileSync(serverDestPath, "utf8");
+        const rendererPath = hasSrcDir
+          ? "/src/open-rsc/renderer/index.tsx"
+          : "/open-rsc/renderer/index.tsx";
+
+        serverContent = serverContent.replace(
+          'vite.ssrLoadModule("/src/open-rsc/renderer/index.tsx")',
+          `vite.ssrLoadModule("${rendererPath}")`
+        );
+
+        fs.writeFileSync(serverDestPath, serverContent);
+        console.log(
+          `${greenCheckmark} ${serverFramework} server has been configured successfully`
         );
       } else {
         console.error(`Error: ${serverFramework} server file not found`);
@@ -333,7 +362,7 @@ async function init() {
         // Write the adjusted content to the new location
         fs.writeFileSync(routesDestPath, routesContent);
         console.log(
-          `routes.ts has been copied to ${routesDestPath} with adjusted import`
+          `${greenCheckmark} Routes have been configured successfully`
         );
       } else {
         console.error("Error: routes.ts file not found in the package");
@@ -360,7 +389,7 @@ async function init() {
 
         // Write the adjusted content back to renderer/index.tsx
         fs.writeFileSync(rendererPath, rendererContent);
-        console.log("Updated route configuration import in renderer");
+        console.log(`${greenCheckmark} Updated route configuration import in renderer`);
       } else {
         console.error("Error: renderer/index.tsx file not found");
       }
@@ -375,8 +404,8 @@ async function init() {
       updateIndexHtml(hasSrcDir === "y");
 
       // Update package.json script
-      updatePackageJsonScript(hasSrcDir === 'y');
-      console.log("open-rsc installed successfully.");
+      updatePackageJsonScript(hasSrcDir === "y");
+      console.log(`${greenCheckmark} open-rsc installed successfully!`);
     } else {
       console.error("Error: open-rsc folder not found in the package");
     }

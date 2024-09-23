@@ -6,7 +6,7 @@ async function hydrate() {
 	for (const container of clientComponents) {
 		const componentPath = container.getAttribute("data-component-path");
 		if (componentPath) {
-			const module = await import(componentPath);
+			const module = await import(/* @vite-ignore */ componentPath);
 			const Component = module.default;
 			ReactDOM.hydrateRoot(container, createElement(Component));
 		}
