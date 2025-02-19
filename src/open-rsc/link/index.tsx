@@ -1,18 +1,18 @@
-"use client";
-
 import type { MouseEvent, ReactNode } from "react";
+
 import { useCallback } from "react";
 
 export interface LinkProps {
-	to: string;
+	href: string;
 	children: ReactNode;
+	className?: string;
 }
 
-export function Link({ to, children }: LinkProps) {
+export default function Link({ href, children, className }: LinkProps) {
 	const handleClick = useCallback(
 		(e: MouseEvent<HTMLAnchorElement>) => {
 			const currentUrl = new URL(window.location.href);
-			const targetUrl = new URL(to, window.location.origin);
+			const targetUrl = new URL(href, window.location.origin);
 
 			// Compare the full URLs, ignoring trailing slashes
 			if (
@@ -30,17 +30,17 @@ export function Link({ to, children }: LinkProps) {
 
 			if (!isServerRendered) {
 				e.preventDefault();
-				window.history.pushState({}, "", to);
+				window.history.pushState({}, "", href);
 				window.dispatchEvent(
-					new CustomEvent("routeChange", { detail: { path: to } }),
+					new CustomEvent("routeChange", { detail: { path: href } }),
 				);
 			}
 		},
-		[to],
+		[href],
 	);
 
 	return (
-		<a href={to} onClick={handleClick}>
+		<a href={href} onClick={handleClick} className={className}>
 			{children}
 		</a>
 	);

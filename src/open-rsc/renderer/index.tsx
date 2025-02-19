@@ -1,4 +1,4 @@
-import React, { createElement } from "react";
+import React from "react";
 import ReactDOMServer from "react-dom/server";
 import { OpenRSC } from "..";
 import { routes } from "../routes";
@@ -15,47 +15,86 @@ function isClientComponent(
 	return (
 		(component as { __componentPath?: string }).__componentPath !== undefined ||
 		(typeof component.toString === "function" &&
-			component.toString().includes('"use client"'))
+			component.toString().includes('"use client"')) ||
+		// Check if the component or its prototype has a __componentPath
+		(component as { prototype?: { __componentPath?: string } }).prototype
+			?.__componentPath !== undefined
 	);
 }
 
 function wrapClientComponent(
-	Component: React.ComponentType<unknown>,
+	Component: React.ComponentType<Record<string, unknown>>,
 	props: Record<string, unknown>,
 ) {
-	const WrappedComponent: React.FC<Record<string, unknown>> = (
-		componentProps,
-	) => (
-		<div
-			data-client-component
-			data-component-path={
-				(Component as { __componentPath?: string }).__componentPath
-			}
-		>
-			{createElement(Component, componentProps)}
-		</div>
-	);
-	return <WrappedComponent {...props} />;
+	const WrappedComponent: React.FC = () => {
+		const { className, style, ...restProps } = props;
+		return (
+			<div
+				data-client-component
+				data-component-path={
+					(Component as { __componentPath?: string }).__componentPath
+				}
+				className={className as string}
+				style={{ ...(style as React.CSSProperties), display: "contents" }}
+			>
+				<Component {...restProps} />
+			</div>
+		);
+	};
+
+	return <WrappedComponent />;
 }
 
 function replaceClientComponents(
-	element: React.ReactElement,
-): React.ReactElement {
-	if (typeof element.type === "function" && isClientComponent(element.type)) {
-		return wrapClientComponent(
-			element.type as React.ComponentType<unknown>,
-			element.props,
-		);
+	element: React.ReactNode,
+	insideClientComponent = false,
+): React.ReactNode {
+	if (!React.isValidElement(element)) {
+		return element;
 	}
 
-	const children = React.Children.map(element.props.children, (child) => {
-		if (React.isValidElement(child)) {
-			return replaceClientComponents(child);
-		}
-		return child;
-	});
+	let processedElement = element;
+	let isCurrentComponentClient = insideClientComponent;
 
-	return React.cloneElement(element, {}, children);
+	// Check if the current element is a function (potential component)
+	if (typeof element.type === "function") {
+		const Component = element.type as React.ComponentType<unknown>;
+
+		if (isClientComponent(Component) || insideClientComponent) {
+			isCurrentComponentClient = true;
+		}
+	}
+
+	// Process children, passing down the client component status
+	const children = React.Children.toArray(processedElement.props.children);
+	const processedChildren = children.map((child) =>
+		replaceClientComponents(child, isCurrentComponentClient),
+	);
+
+	// Create new element with processed children
+	if (typeof processedElement.type === "function") {
+		const Component = processedElement.type as React.ComponentType<unknown>;
+		const processedProps = {
+			...processedElement.props,
+			children: processedChildren,
+		};
+
+		if (isCurrentComponentClient) {
+			processedElement = wrapClientComponent(Component, processedProps);
+		} else {
+			processedElement = React.createElement(Component, processedProps);
+		}
+	} else if (React.isValidElement(processedElement)) {
+		if (!children.every((child, index) => child === processedChildren[index])) {
+			processedElement = React.cloneElement(
+				processedElement,
+				processedElement.props,
+				...processedChildren,
+			);
+		}
+	}
+
+	return processedElement;
 }
 
 export async function render(url: string) {
@@ -80,9 +119,18 @@ export async function render(url: string) {
 
 	let element: React.ReactElement;
 
-	element = await (Component as () => Promise<React.ReactElement>)();
+	try {
+		element = await (Component as () => Promise<React.ReactElement>)();
 
-	element = replaceClientComponents(element);
+		const processedElement = replaceClientComponents(element);
+
+		element = React.isValidElement(processedElement)
+			? processedElement
+			: element;
+	} catch (error) {
+		console.error("Error rendering component:", error);
+		element = <div>Error rendering component</div>;
+	}
 
 	const appHtml = ReactDOMServer.renderToString(<OpenRSC>{element}</OpenRSC>);
 

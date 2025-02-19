@@ -6,8 +6,8 @@ import path from "node:path";
 import inquirer from "inquirer";
 import stripJsonComments from "strip-json-comments";
 
-const greenCheckmark = '\x1b[32m✓\x1b[0m';
-const redCross = '\x1b[31m❌\x1b[0m';
+const greenCheckmark = "\x1b[32m✓\x1b[0m";
+const redCross = "\x1b[31m❌\x1b[0m";
 
 async function askQuestion(query) {
   const answer = await inquirer.prompt([
@@ -56,7 +56,9 @@ function updateTsConfigNode(hasSrcDir) {
 
       // Write back without stripping comments
       fs.writeFileSync(tsConfigNodePath, JSON.stringify(tsConfigNode, null, 2));
-      console.log(`${greenCheckmark} tsconfig.node.json has been configured successfully`);
+      console.log(
+        `${greenCheckmark} tsconfig.node.json has been configured successfully`
+      );
     } catch (error) {
       console.error(`${redCross} Error parsing tsconfig.node.json:`, error);
       throw error; // Re-throw the error to stop the execution
@@ -101,21 +103,34 @@ function updateViteConfig(hasSrcDir) {
     }
 
     fs.writeFileSync(viteConfigPath, viteConfig);
-    console.log(`${greenCheckmark} vite.config.ts has been configured successfully`);
+    console.log(
+      `${greenCheckmark} vite.config.ts has been configured successfully`
+    );
   } else {
     console.warn("vite.config.ts not found. Skipping update.");
   }
 }
 
-function updateIndexHtml(hasSrcDir) {
+function updateIndexHtml(hasSrcDir, openRscPath) {
   const indexHtmlPath = path.join(process.cwd(), "index.html");
+  const scriptJsPath = path.join(openRscPath, "script.js");
   if (fs.existsSync(indexHtmlPath)) {
     let content = fs.readFileSync(indexHtmlPath, "utf8");
+    let scriptContent = "";
+
+    if (fs.existsSync(scriptJsPath)) {
+      scriptContent = fs.readFileSync(scriptJsPath, "utf8");
+    } else {
+      console.warn(`${redCross} script.js not found at ${scriptJsPath}. Skipping script insertion.`);
+    }
 
     // Add lines to head with proper indentation and new line
     content = content.replace(/<head>([\s\S]*?)<\/head>/, (match, p1) => {
       const indent = p1.match(/^\s*/)[0]; // Get the existing indentation
       return `<head>
+${indent}<script>
+${scriptContent.split('\n').map(line => `${indent}  ${line}`).join('\n')}
+${indent}</script>
 ${indent}${p1.trim()}
 ${indent}<!--app-head-->
 ${indent}<!--ssr-marker-->
@@ -141,7 +156,9 @@ ${indent}<!--ssr-marker-->
     content = content.replace(/^\s*$(?:\r\n?|\n)/gm, "");
 
     fs.writeFileSync(indexHtmlPath, content);
-    console.log(`${greenCheckmark} index.html has been configured successfully`);
+    console.log(
+      `${greenCheckmark} index.html has been configured successfully`
+    );
   } else {
     console.warn("index.html not found. Skipping update.");
   }
@@ -227,7 +244,9 @@ function updatePackageJsonScript(hasSrcDir) {
       packageJson.scripts.dev = `node ${serverPath}`;
 
       fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-      console.log(`${greenCheckmark} 'dev' script has been configured successfully`);
+      console.log(
+        `${greenCheckmark} 'dev' script has been configured successfully`
+      );
     } catch (error) {
       console.error(`${redCross} Error updating package.json:`, error);
     }
@@ -255,6 +274,11 @@ async function init() {
   // Ask for routes.ts location
   const routesLocation = await askQuestion(
     'Where would you like to place the route configuration file? (relative to project root, e.g., "src" or "src/router"): '
+  );
+
+  // Ask for layout.tsx location
+  const layoutLocation = await askQuestion(
+    'Where would you like to place the layout.tsx file? (relative to project root, e.g., "src" or "src/components"): '
   );
 
   const installDir =
@@ -300,7 +324,12 @@ async function init() {
 
       // Copy all files and directories except the 'server' directory and 'routes.ts'
       for (const item of fs.readdirSync(openRscPath)) {
-        if (item !== "server" && item !== "routes.ts") {
+        if (
+          item !== "server" &&
+          item !== "routes.ts" &&
+          item !== "layout.tsx" &&
+          item !== "script.js"
+        ) {
           const srcItem = path.join(openRscPath, item);
           const destItem = path.join(destPath, item);
           copyFileOrDir(srcItem, destItem);
@@ -333,7 +362,9 @@ async function init() {
           `${greenCheckmark} ${serverFramework} server has been configured successfully`
         );
       } else {
-        console.error(`${redCross} Error: ${serverFramework} server file not found`);
+        console.error(
+          `${redCross} Error: ${serverFramework} server file not found`
+        );
       }
 
       // Copy routes.ts to the specified location and adjust the import
@@ -368,6 +399,45 @@ async function init() {
         console.error(`${redCross} Error: routes.ts file not found`);
       }
 
+      // Copy layout.tsx to the specified location
+      const layoutSrcPath = path.join(openRscPath, "layout.tsx");
+      const layoutDestPath = path.join(targetDir, layoutLocation, "layout.tsx");
+      if (fs.existsSync(layoutSrcPath)) {
+        fs.mkdirSync(path.dirname(layoutDestPath), { recursive: true });
+        fs.copyFileSync(layoutSrcPath, layoutDestPath);
+        console.log(
+          `${greenCheckmark} layout.tsx has been copied to ${layoutDestPath}`
+        );
+      } else {
+        console.error(`${redCross} Error: layout.tsx file not found`);
+      }
+
+      // Update the import in hydration/index.tsx
+      const hydrationPath = path.join(destPath, "hydration", "index.tsx");
+      if (fs.existsSync(hydrationPath)) {
+        let hydrationContent = fs.readFileSync(hydrationPath, "utf8");
+
+        // Calculate the relative path from hydration/index.tsx to layout.tsx
+        const layoutRelativePath = path.relative(
+          path.dirname(hydrationPath),
+          layoutDestPath
+        );
+
+        // Adjust the import statement
+        hydrationContent = hydrationContent.replace(
+          'import Layout from "../layout";',
+          `import Layout from "${layoutRelativePath.replace(/\\/g, "/")}";`
+        );
+
+        // Write the adjusted content back to hydration/index.tsx
+        fs.writeFileSync(hydrationPath, hydrationContent);
+        console.log(
+          `${greenCheckmark} Hydration index has been updated with the correct layout import`
+        );
+      } else {
+        console.error(`${redCross} Error: hydration/index.tsx file not found`);
+      }
+
       // Adjust the import in renderer/index.tsx
       const rendererPath = path.join(destPath, "renderer", "index.tsx");
       if (fs.existsSync(rendererPath)) {
@@ -389,7 +459,9 @@ async function init() {
 
         // Write the adjusted content back to renderer/index.tsx
         fs.writeFileSync(rendererPath, rendererContent);
-        console.log(`${greenCheckmark} Renderer has been configured successfully`);
+        console.log(
+          `${greenCheckmark} Renderer has been configured successfully`
+        );
       } else {
         console.error(`${redCross} Error: renderer/index.tsx file not found`);
       }
@@ -401,7 +473,7 @@ async function init() {
       updateViteConfig(hasSrcDir === "y");
 
       // Update index.html
-      updateIndexHtml(hasSrcDir === "y");
+      updateIndexHtml(hasSrcDir === "y", openRscPath);
 
       // Update package.json script
       updatePackageJsonScript(hasSrcDir === "y");

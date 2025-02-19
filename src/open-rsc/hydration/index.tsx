@@ -1,3 +1,4 @@
+import Layout from "../layout";
 import { createElement } from "react";
 import ReactDOM from "react-dom/client";
 
@@ -8,7 +9,10 @@ async function hydrate() {
 		if (componentPath) {
 			const module = await import(/* @vite-ignore */ componentPath);
 			const Component = module.default;
-			ReactDOM.hydrateRoot(container, createElement(Component));
+			ReactDOM.hydrateRoot(
+				container,
+				<Layout>{createElement(Component)}</Layout>,
+			);
 		}
 	}
 }
